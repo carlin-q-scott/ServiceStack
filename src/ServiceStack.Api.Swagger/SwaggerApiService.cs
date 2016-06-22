@@ -20,11 +20,16 @@ namespace ServiceStack.Api.Swagger
         public string Name { get; set; }
     }
 
+    /// <summary>
+    /// https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v1.2/apiDeclaration.json#
+    /// </summary>
     [DataContract]
     public class ResourceResponse
     {
         [DataMember(Name = "apiVersion")]
         public string ApiVersion { get; set; }
+        [DataMember(Name = "swaggerVersion")]
+        public string SwaggerVersion { get { return "1.2"; } }
         [DataMember(Name = "basePath")]
         public string BasePath { get; set; }
         [DataMember(Name = "resourcePath")]
@@ -36,7 +41,6 @@ namespace ServiceStack.Api.Swagger
     }
 
     /// <summary>
-    /// https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v1.2/dataType.json
     /// https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v1.2/modelsObject.json
     /// </summary>
     [DataContract]
@@ -61,6 +65,7 @@ namespace ServiceStack.Api.Swagger
 
     /// <summary>
     /// https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v1.2/operationObject.json
+    /// https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v1.2/dataTypeBase.json
     /// </summary>
     [DataContract]
     public class MethodOperation
@@ -75,8 +80,10 @@ namespace ServiceStack.Api.Swagger
         public string Notes { get; set; }
         [DataMember(Name = "parameters")]
         public List<MethodOperationParameter> Parameters { get; set; }
-        [DataMember(Name = "responseClass")]
-        public string ResponseClass { get; set; }
+        [DataMember(Name = "type")]
+        public string ResponseType { get; set; }
+        [DataMember(Name = "items")]
+        public Dictionary<string, string> Items { get; set; }
         [DataMember(Name = "responseMessages")]
         public List<ResponseMessage> ResponseMessages { get; set; }
     }
@@ -90,7 +97,9 @@ namespace ServiceStack.Api.Swagger
         [DataMember(Name = "code")]
         public int StatusCode { get; set; }
         [DataMember(Name = "message")]
-        public string Reason { get; set; }
+        public string Message { get; set; }
+        [DataMember(Name = "responseModel")]
+        public string ResponseModel { get; set; }
     }
 
     /// <summary>
@@ -405,7 +414,7 @@ namespace ServiceStack.Api.Swagger
                     {
                         var listItemType = GetListElementType(returnType);
                         ParseModel(models, listItemType);
-                        return string.Format("List[{0}]", GetSwaggerTypeName(listItemType));
+                        return string.Format("array[{0}]", GetSwaggerTypeName(listItemType));
                     }
                     ParseModel(models, returnType);
                     return GetSwaggerTypeName(i.GetGenericArguments()[0]);
@@ -423,7 +432,7 @@ namespace ServiceStack.Api.Swagger
                 .Select(x => new ResponseMessage
                 {
                     StatusCode = (int)x.StatusCode,
-                    Reason = x.Description
+                    Message = x.Description
                 }).ToList();
         }
 
@@ -447,16 +456,27 @@ namespace ServiceStack.Api.Swagger
                 Path = restPath.Path,
                 Description = summary,
                 Operations = verbs.Select(verb =>
-                    new MethodOperation
+                {
+                    var responseClass = GetResponseClass(restPath, models);
+                    Dictionary<string, string> items = null;
+                    if (responseClass != null && responseClass.StartsWith("array"))
+                    {
+                        var pieces = responseClass.Split("[]".ToCharArray());
+                        responseClass = pieces[0];
+                        items = new Dictionary<string, string> { { "type", pieces[1] } };
+                    }
+                    return new MethodOperation
                     {
                         HttpMethod = verb,
                         Nickname = verb.ToLowerInvariant() + nickName,
                         Summary = summary,
                         Notes = notes,
                         Parameters = ParseParameters(verb, restPath.RequestType, models),
-                        ResponseClass = GetResponseClass(restPath, models),
+                        ResponseType = responseClass,
+                        Items = items,
                         ResponseMessages = GetMethodResponseCodes(restPath.RequestType)
-                    }).ToList()
+                    };
+                }).ToList()
             };
             return md;
         }

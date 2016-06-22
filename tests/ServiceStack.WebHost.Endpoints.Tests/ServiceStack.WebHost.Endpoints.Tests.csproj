@@ -79,6 +79,14 @@
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Newtonsoft.Json, Version=8.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\..\src\packages\Newtonsoft.Json.8.0.2\lib\net40\Newtonsoft.Json.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json.Schema, Version=2.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\..\src\packages\Newtonsoft.Json.Schema.2.0.2\lib\net40\Newtonsoft.Json.Schema.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="protobuf-net">
       <HintPath>..\..\src\packages\protobuf-net.2.0.0.640\lib\net40\protobuf-net.dll</HintPath>
     </Reference>
@@ -101,6 +109,7 @@
       <RequiredTargetFramework>3.0</RequiredTargetFramework>
     </Reference>
     <Reference Include="System.Web" />
+    <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml.Linq">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
@@ -150,6 +159,8 @@
     <Compile Include="ServiceSetupTests.cs" />
     <Compile Include="Support\Services\FailingService.cs" />
     <Compile Include="GetEncodingFromContentTypeTest.cs" />
+    <Compile Include="SwaggerFeatureSchemaTests.cs" />
+    <Compile Include="SwaggerFeatureTestFixture.cs" />
     <Compile Include="UniqueRequestTests.cs" />
     <Compile Include="SendOneWayTests.cs" />
     <Compile Include="Support\Services\EndpointAccessService.cs" />
@@ -315,6 +326,7 @@
     <Folder Include="ServiceModel\" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="app.config" />
     <None Include="packages.config" />
     <None Include="README.md" />
   </ItemGroup>
