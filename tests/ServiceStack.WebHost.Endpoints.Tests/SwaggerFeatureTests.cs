@@ -37,7 +37,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             var resource = client.Get<ResourceResponse>("/resource/swagger2/NameIsNotSetRequest");
 
             var p = resource.Apis.SelectMany(t => t.Operations).SelectMany(t => t.Parameters);
-            Assert.That(p.Count(), Is.EqualTo(1));
+            Assert.That(p.Count(), Is.EqualTo(2));
             Assert.That(p.FirstOrDefault(t=>t.Name == "Name"), Is.Not.Null);
         }
 
@@ -149,7 +149,7 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         }
 
         [Test, TestCaseSource("RestClients")]
-        public void Should_retrieve_service_parameters(IRestClient client)
+        public void Should_retrieve_specified_service_parameters(IRestClient client)
         {
             var resource = client.Get<ResourceResponse>("/resource/swagger");
             Assert.That(resource.BasePath, Is.EqualTo(BaseUrl));
@@ -166,19 +166,74 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             Assert.That(getOperation.Notes, Is.EqualTo("GET Notes"));
             Assert.That(getOperation.HttpMethod, Is.EqualTo("GET"));
 
-            Assert.That(getOperation.Parameters, Is.Not.Empty);
-            var p1 = getOperation.Parameters[0];
-            Assert.That(p1.Name, Is.EqualTo("Name"));
-            Assert.That(p1.Description, Is.EqualTo("Name Description"));
-            Assert.That(p1.DataType, Is.EqualTo("string"));
-            Assert.That(p1.ParamType, Is.EqualTo("path"));
-            Assert.That(p1.Required, Is.EqualTo(true));
-
+            Assert.That(getOperation.Parameters, Has.Count.GreaterThanOrEqualTo(1));
+            {
+                var p1 = getOperation.Parameters[0];
+                Assert.That(p1.Name, Is.EqualTo("Name"));
+                Assert.That(p1.Description, Is.EqualTo("Name Description"));
+                Assert.That(p1.DataType, Is.EqualTo("string"));
+                Assert.That(p1.ParamType, Is.EqualTo("path"));
+                Assert.That(p1.Required, Is.EqualTo(true));
+            }
 
             var postOperation = operations.Single(t => t.HttpMethod == "POST");
             Assert.That(postOperation.Summary, Is.EqualTo("POST Summary"));
             Assert.That(postOperation.Notes, Is.EqualTo("POST Notes"));
             Assert.That(postOperation.HttpMethod, Is.EqualTo("POST"));
+
+            Assert.That(postOperation.Parameters, Has.Count.GreaterThanOrEqualTo(1));
+            {
+                var p1 = postOperation.Parameters[0];
+                Assert.That(p1.Name, Is.EqualTo("Name"));
+                Assert.That(p1.Description, Is.EqualTo("Name Description"));
+                Assert.That(p1.DataType, Is.EqualTo("string"));
+                Assert.That(p1.ParamType, Is.EqualTo("path"));
+                Assert.That(p1.Required, Is.EqualTo(true));
+            }
+        }
+
+        [Test, TestCaseSource("RestClients")]
+        public void Should_retrieve_implied_service_parameters(IRestClient client)
+        {
+            var resource = client.Get<ResourceResponse>("/resource/swagger");
+            Assert.That(resource.BasePath, Is.EqualTo(BaseUrl));
+            Assert.That(resource.ResourcePath, Is.EqualTo("/swagger"));
+            Assert.That(resource.Apis, Is.Not.Empty);
+
+            resource.Apis.PrintDump();
+
+            var operations = new List<MethodOperation>();
+            foreach (var api in resource.Apis) operations.AddRange(api.Operations);
+
+            var getOperation = operations.Single(t => t.HttpMethod == "GET");
+
+            Assert.That(getOperation.Parameters, Has.Count.GreaterThanOrEqualTo(2));
+            {
+                var p1 = getOperation.Parameters[1];
+                Assert.That(p1.Name, Is.EqualTo("Name"));
+                Assert.That(p1.Description, Is.Null);
+                Assert.That(p1.DataType, Is.EqualTo("string"));
+                Assert.That(p1.ParamType, Is.EqualTo("query"));
+                Assert.That(p1.Required, Is.EqualTo(false));
+            }
+
+            var postOperation = operations.Single(t => t.HttpMethod == "POST");
+            Assert.That(postOperation.Parameters, Has.Count.GreaterThanOrEqualTo(3));
+            {
+                var p2 = getOperation.Parameters[1];
+                Assert.That(p2.Name, Is.EqualTo("Name"));
+                Assert.That(p2.Description, Is.Null);
+                Assert.That(p2.DataType, Is.EqualTo("string"));
+                Assert.That(p2.ParamType, Is.EqualTo("query"));
+                Assert.That(p2.Required, Is.EqualTo(false));
+
+                var p3 = postOperation.Parameters[2];
+                Assert.That(p3.Name, Is.EqualTo("SwaggerFeatureRequest"));
+                Assert.That(p3.Description, Is.Null);
+                Assert.That(p3.DataType, Is.EqualTo("SwaggerFeatureRequest"));
+                Assert.That(p3.ParamType, Is.EqualTo("body"));
+                Assert.That(p3.Required, Is.EqualTo(false));
+            }
         }
 
         [Test, TestCaseSource("RestClients")]

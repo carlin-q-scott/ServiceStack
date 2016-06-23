@@ -443,11 +443,10 @@ namespace ServiceStack.Api.Swagger
             var notes = restPath.Notes;
 
             if (restPath.AllowsAllVerbs)
-            {
                 verbs.AddRange(new[] { "GET", "POST", "PUT", "DELETE" });
-            }
             else
                 verbs.AddRange(restPath.AllowedVerbs.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries));
+            verbs.Remove(Common.Web.HttpMethods.Options);
 
             var nickName = nicknameCleanerRegex.Replace(restPath.Path, "");
 
@@ -483,50 +482,14 @@ namespace ServiceStack.Api.Swagger
 
         private static List<MethodOperationParameter> ParseParameters(string verb, Type operationType, IDictionary<string, SwaggerModel> models)
         {
-            var hasDataContract = operationType.GetCustomAttributes(typeof(DataContractAttribute), inherit: true).Length > 0;
-
-            var properties = operationType.GetProperties();
-            var paramAttrs = new Dictionary<string, ApiMemberAttribute[]>();
-            var allowableParams = new List<ApiAllowableValuesAttribute>();
-
-            foreach (var property in properties)
-            {
-                var propertyName = property.Name;
-                if (hasDataContract)
-                {
-                    var dataMemberAttr = property.GetCustomAttributes(typeof(DataMemberAttribute), inherit: true)
-                        .FirstOrDefault() as DataMemberAttribute;
-                    if (dataMemberAttr != null && dataMemberAttr.Name != null)
-                    {
-                        propertyName = dataMemberAttr.Name;
-                    }
-                }
-                paramAttrs[propertyName] = (ApiMemberAttribute[])property.GetCustomAttributes(typeof(ApiMemberAttribute), true);
-                allowableParams.AddRange(property.GetCustomAttributes(typeof(ApiAllowableValuesAttribute), true).Cast<ApiAllowableValuesAttribute>().ToArray());
-            }
-
-            var methodOperationParameters = new List<MethodOperationParameter>();
-            foreach (var key in paramAttrs.Keys)
-            {
-                var value = paramAttrs[key];
-                methodOperationParameters.AddRange(
-                    from ApiMemberAttribute member in value
-                    where member.Verb == null || string.Compare(member.Verb, verb, StringComparison.InvariantCultureIgnoreCase) == 0
-                    select new MethodOperationParameter
-                    {
-                        DataType = member.DataType,
-                        AllowMultiple = member.AllowMultiple,
-                        Description = member.Description,
-                        Name = member.Name ?? key,
-                        ParamType = member.ParameterType,
-                        Required = member.IsRequired,
-                        AllowableValues = allowableParams.FirstOrDefault(attr => attr.Name == member.Name)
-                    });
-            }
+            var methodOperationParameters = DocumentedParametersFor(verb, operationType)
+                .Union(ImpliedParametersFor(operationType), new MethodOperationParameterComparer())
+                .ToList();
 
             if (!DisableAutoDtoInBodyParam)
             {
-                if (!ServiceStack.Common.Web.HttpMethods.Get.Equals(verb, StringComparison.OrdinalIgnoreCase) && !methodOperationParameters.Any(p => p.ParamType.Equals("body", StringComparison.OrdinalIgnoreCase)))
+                if (!Common.Web.HttpMethods.Get.Equals(verb, StringComparison.OrdinalIgnoreCase)
+                    && !methodOperationParameters.Any(p => p.ParamType.Equals("body", StringComparison.OrdinalIgnoreCase)))
                 {
                     ParseModel(models, operationType);
                     var param = new MethodOperationParameter()
@@ -541,5 +504,120 @@ namespace ServiceStack.Api.Swagger
             return methodOperationParameters;
         }
 
+        private static string GetPropertyName(PropertyInfo property, bool hasDataContract)
+        {
+            var propertyName = property.Name;
+            if (hasDataContract)
+            {
+                var dataMemberAttr = property.GetCustomAttributes(typeof (DataMemberAttribute), inherit: true)
+                    .FirstOrDefault() as DataMemberAttribute;
+                if (dataMemberAttr != null && dataMemberAttr.Name != null)
+                {
+                    propertyName = dataMemberAttr.Name;
+                }
+            }
+            return propertyName;
+        }
+
+        private static IEnumerable<MethodOperationParameter> DocumentedParametersFor(string operationVerb, Type operationType)
+        {
+
+            var hasDataContract = operationType.GetCustomAttributes(typeof(DataContractAttribute), inherit: true).Length > 0;
+
+            var properties = operationType.GetProperties();
+            var paramAttrs = new Dictionary<string, ApiMemberAttribute[]>();
+            var allowableParams = new List<ApiAllowableValuesAttribute>();
+
+            foreach (var property in properties)
+            {
+                var propertyName = GetPropertyName(property, hasDataContract);
+                paramAttrs[propertyName] = (ApiMemberAttribute[])property.GetCustomAttributes(typeof(ApiMemberAttribute), true);
+                allowableParams.AddRange(property.GetCustomAttributes(typeof(ApiAllowableValuesAttribute), true).Cast<ApiAllowableValuesAttribute>().ToArray());
+            }
+
+            var methodOperationParameters = new List<MethodOperationParameter>();
+            foreach (var key in paramAttrs.Keys)
+            {
+                var value = paramAttrs[key];
+                methodOperationParameters.AddRange(
+                    from ApiMemberAttribute member in value
+                    where
+                        member.Verb == null ||
+                        string.Compare(member.Verb, operationVerb, StringComparison.InvariantCultureIgnoreCase) == 0
+                    select new MethodOperationParameter
+                    {
+                        DataType = member.DataType,
+                        AllowMultiple = member.AllowMultiple,
+                        Description = member.Description,
+                        Name = member.Name ?? key,
+                        ParamType = member.ParameterType,
+                        Required = member.IsRequired,
+                        AllowableValues = allowableParams.FirstOrDefault(attr => attr.Name == member.Name)
+                    });
+            }
+
+            return methodOperationParameters;
+        }
+
+        private static IEnumerable<MethodOperationParameter> ImpliedParametersFor(Type operationType)
+        {
+            var hasDataContract = operationType.GetCustomAttributes(typeof(DataContractAttribute), inherit: true).Length > 0;
+
+            //Add all operation route properties as route params
+            var routePropertyNames = GetRoutePropertyNames(operationType);
+            var operationProperties = operationType.GetProperties();
+            var routeParams = routePropertyNames.Select(routePropertyName =>
+            {
+                var operationProperty = operationProperties.Single(p => p.Name == routePropertyName);
+                return new MethodOperationParameter()
+                {
+                    DataType = GetSwaggerTypeName(operationProperty.PropertyType),
+                    Name = GetPropertyName(operationProperty, hasDataContract),
+                    ParamType = "path"
+                };
+            });
+
+            //Add all operation properties as query params
+            var queryParams = operationProperties.Select(operationProperty => new MethodOperationParameter()
+            {
+                DataType = GetSwaggerTypeName(operationProperty.PropertyType),
+                Name = GetPropertyName(operationProperty, hasDataContract),
+                ParamType = "query"
+            });
+
+            
+            return routeParams.Concat(queryParams);
+        }
+
+        private static IEnumerable<string> GetRoutePropertyNames(Type operationType)
+        {
+            var routeParamRegex = new Regex(@"{(\w+)}");
+            return operationType
+                .GetCustomAttributes(typeof (RouteAttribute), true)
+                .Cast<RouteAttribute>()
+                .SelectMany(r =>
+                    routeParamRegex.Matches(r.Path)
+                        .Cast<Match>()
+                        .SelectMany(m =>
+                            m.Groups.Cast<Capture>()
+                                .Skip(1)
+                                .Select(c => c.Value)
+                        )
+                )
+                .Distinct();
+        }
+
+        private class MethodOperationParameterComparer : IEqualityComparer<MethodOperationParameter>
+        {
+            public bool Equals(MethodOperationParameter x, MethodOperationParameter y)
+            {
+                return x.Name == y.Name || x.ParamType == y.ParamType;
+            }
+
+            public int GetHashCode(MethodOperationParameter obj)
+            {
+                return obj.Name.GetHashCode() | obj.ParamType.GetHashCode();
+            }
+        }
     }
 }
