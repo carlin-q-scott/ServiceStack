@@ -59,6 +59,18 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         public string Name { get; set; }
     }
 
+    [Route("/swaggerComplexParamTypes", "GET")]
+    [Route("/swaggerComplexParamTypes", "POST")]
+    public class SwaggerComplexParamTypes
+    {
+        [ApiMember(Name = "StringEnumerable", Description = "string enumeration", ParameterType = "query", Verb = "GET")]
+        public IEnumerable<string> StringEnumerable { get; set; }
+        [ApiMember(Name = "BoolList", ParameterType = "query", Verb = "GET")]
+        public List<bool> BoolList { get; set; }
+        [ApiMember(Name = "NullableBool", ParameterType = "query", Verb = "GET")]
+        public bool? NullableBool { get; set; }
+    }
+
     [ServiceHost.Api]
     [Route("/swaggerGetList/{Name}", "GET")]
     public class SwaggerGetListRequest : IReturn<List<SwaggerFeatureResponse>>
@@ -232,6 +244,11 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         public object Post(SwaggerFeatureRequest request)
         {
             return new SwaggerFeatureResponse { IsSuccess = true };
+        }
+
+        public object Get(SwaggerComplexParamTypes request)
+        {
+            return new SwaggerFeatureResponse();
         }
 
         public object Get(NameIsNotSetRequest request)

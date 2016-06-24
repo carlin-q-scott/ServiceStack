@@ -237,6 +237,88 @@ namespace ServiceStack.WebHost.Endpoints.Tests
         }
 
         [Test, TestCaseSource("RestClients")]
+        public void Should_retrieve_specified_service_complex_parameters(IRestClient client)
+        {
+            var resource = client.Get<ResourceResponse>("/resource/swaggerComplexParamTypes");
+            Assert.That(resource.BasePath, Is.EqualTo(BaseUrl));
+            Assert.That(resource.ResourcePath, Is.EqualTo("/swaggerComplexParamTypes"));
+            Assert.That(resource.Apis, Is.Not.Empty);
+
+            resource.Apis.PrintDump();
+
+            var operations = new List<MethodOperation>();
+            foreach (var api in resource.Apis) operations.AddRange(api.Operations);
+
+            var getOperation = operations.Single(t => t.HttpMethod == "GET");
+
+            Assert.That(getOperation.Parameters, Has.Count.GreaterThanOrEqualTo(1));
+            {
+                var param = getOperation.Parameters.Single(p => p.Name == "StringEnumerable");
+                Assert.That(param.Description, Is.EqualTo("string enumeration"));
+                Assert.That(param.DataType, Is.EqualTo("array"));
+                Assert.That(param.Required, Is.EqualTo(false));
+                Assert.That(param.Items["type"], Is.EqualTo("string"));
+
+                param = getOperation.Parameters.Single(p => p.Name == "BoolList");
+                Assert.That(param.Name, Is.EqualTo("BoolList"));
+                Assert.That(param.Description, Is.Null);
+                Assert.That(param.DataType, Is.EqualTo("array"));
+                Assert.That(param.ParamType, Is.EqualTo("query"));
+                Assert.That(param.Required, Is.EqualTo(false));
+                Assert.That(param.Items["type"], Is.EqualTo("boolean"));
+
+                param = getOperation.Parameters.Single(p => p.Name == "NullableBool");
+                Assert.That(param.Name, Is.EqualTo("NullableBool"));
+                Assert.That(param.Description, Is.Null);
+                Assert.That(param.DataType, Is.EqualTo("boolean"));
+                Assert.That(param.ParamType, Is.EqualTo("query"));
+                Assert.That(param.Required, Is.EqualTo(false));
+                Assert.That(param.Items, Is.Null);
+            }
+        }
+
+        [Test, TestCaseSource("RestClients")]
+        public void Should_retrieve_implied_service_complex_parameters(IRestClient client)
+        {
+            var resource = client.Get<ResourceResponse>("/resource/swaggerComplexParamTypes");
+            Assert.That(resource.BasePath, Is.EqualTo(BaseUrl));
+            Assert.That(resource.ResourcePath, Is.EqualTo("/swaggerComplexParamTypes"));
+            Assert.That(resource.Apis, Is.Not.Empty);
+
+            resource.Apis.PrintDump();
+
+            var operations = new List<MethodOperation>();
+            foreach (var api in resource.Apis) operations.AddRange(api.Operations);
+
+            var postOperation = operations.Single(t => t.HttpMethod == "POST");
+
+            Assert.That(postOperation.Parameters, Has.Count.GreaterThanOrEqualTo(1));
+            {
+                var param = postOperation.Parameters.Single(p => p.Name == "StringEnumerable");
+                Assert.That(param.Description, Is.Null);
+                Assert.That(param.DataType, Is.EqualTo("array"));
+                Assert.That(param.Required, Is.EqualTo(false));
+                Assert.That(param.Items["type"], Is.EqualTo("string"));
+
+                param = postOperation.Parameters.Single(p => p.Name == "BoolList");
+                Assert.That(param.Name, Is.EqualTo("BoolList"));
+                Assert.That(param.Description, Is.Null);
+                Assert.That(param.DataType, Is.EqualTo("array"));
+                Assert.That(param.ParamType, Is.EqualTo("query"));
+                Assert.That(param.Required, Is.EqualTo(false));
+                Assert.That(param.Items["type"], Is.EqualTo("boolean"));
+
+                param = postOperation.Parameters.Single(p => p.Name == "NullableBool");
+                Assert.That(param.Name, Is.EqualTo("NullableBool"));
+                Assert.That(param.Description, Is.Null);
+                Assert.That(param.DataType, Is.EqualTo("boolean"));
+                Assert.That(param.ParamType, Is.EqualTo("query"));
+                Assert.That(param.Required, Is.EqualTo(false));
+                Assert.That(param.Items, Is.Null);
+            }
+        }
+
+        [Test, TestCaseSource("RestClients")]
         public void Should_retrieve_response_class_name(IRestClient client)
         {
             var resource = client.Get<ResourceResponse>("/resource/swaggerModels");

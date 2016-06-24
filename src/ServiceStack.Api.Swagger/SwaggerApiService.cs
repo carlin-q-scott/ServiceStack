@@ -5,9 +5,11 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
+using ServiceStack.Common.Extensions;
 using ServiceStack.Text;
 using ServiceStack.ServiceHost;
 using ServiceStack.WebHost.Endpoints;
+using ServiceStack.WebHost.Endpoints.Support.Markdown;
 
 namespace ServiceStack.Api.Swagger
 {
@@ -159,8 +161,11 @@ namespace ServiceStack.Api.Swagger
         public int? Min { get; set; }
         [DataMember(Name = "maximum")]
         public int? Max { get; set; }
+        /// <summary>
+        /// https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v1.2/dataTypeBase.json
+        /// </summary>
         [DataMember(Name = "items")]
-        public ParameterAllowableValues Items { get; set; }
+        public Dictionary<string,string> Items { get; set; }
 
         public ApiAllowableValuesAttribute AllowableValues
         {
@@ -168,23 +173,13 @@ namespace ServiceStack.Api.Swagger
             {
                 if (value != null)
                 {
-                    Items = new ParameterAllowableValues {ValueType = value.Type};
+                    Items = new Dictionary<string, string> { { "type", value.Type } };
                     AllowedValues = value.Values;
                     Max = value.Max;
                     Min = value.Min;
                 }
             }
         }
-    }
-    
-    /// <summary>
-    /// https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v1.2/dataTypeBase.json
-    /// </summary>
-    [DataContract]
-    public class ParameterAllowableValues
-    {
-        [DataMember(Name = "type")]
-        public string ValueType { get; set; }
     }
 
     [DefaultRequest(typeof(ResourceRequest))]
@@ -224,7 +219,7 @@ namespace ServiceStack.Api.Swagger
             var models = new Dictionary<string, SwaggerModel>();
             foreach (var restPath in paths)
             {
-                ParseModel(models, restPath.RequestType);
+                ParseModel(ref models, restPath.RequestType);
             }
 
             return new ResourceResponse
@@ -288,7 +283,7 @@ namespace ServiceStack.Api.Swagger
             return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
         }
 
-        private static void ParseModel(IDictionary<string, SwaggerModel> models, Type modelType)
+        private static void ParseModel(ref Dictionary<string, SwaggerModel> models, Type modelType)
         {
             if (IsSwaggerScalarType(modelType)) return;
 
@@ -344,7 +339,7 @@ namespace ServiceStack.Api.Swagger
                     modelProp.Items = new Dictionary<string, string> {
                         { IsSwaggerScalarType(listItemType) ? "type" : "$ref", GetSwaggerTypeName(listItemType) }
                     };
-                    ParseModel(models, listItemType);
+                    ParseModel(ref models, listItemType);
                 }
                 else if ((Nullable.GetUnderlyingType(propertyType) ?? propertyType).IsEnum)
                 {
@@ -363,7 +358,7 @@ namespace ServiceStack.Api.Swagger
                 }
                 else
                 {
-                    ParseModel(models, propertyType);
+                    ParseModel(ref models, propertyType);
                 }
 
                 var descriptionAttr = prop.GetCustomAttributes(typeof(DescriptionAttribute), true).OfType<DescriptionAttribute>().FirstOrDefault();
@@ -401,27 +396,40 @@ namespace ServiceStack.Api.Swagger
                 : name;
         }
 
-        private static string GetResponseClass(IRestPath restPath, IDictionary<string, SwaggerModel> models)
+        private static void MapToSwaggerTypes(IRestPath restPath, Dictionary<string, SwaggerModel> models, out string responseType, out Dictionary<string,string> items)
         {
+            responseType = null;
+            items = null;
+
             // Given: class MyDto : IReturn<X>. Determine the type X.
             foreach (var i in restPath.RequestType.GetInterfaces())
             {
                 if (i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IReturn<>))
                 {
                     var returnType = i.GetGenericArguments()[0];
-                    // Handle IReturn<List<SomeClass>> or IReturn<SomeClass[]>
-                    if (IsListType(returnType))
-                    {
-                        var listItemType = GetListElementType(returnType);
-                        ParseModel(models, listItemType);
-                        return string.Format("array[{0}]", GetSwaggerTypeName(listItemType));
-                    }
-                    ParseModel(models, returnType);
-                    return GetSwaggerTypeName(i.GetGenericArguments()[0]);
+                    MapToSwaggerTypes(returnType, models, out responseType, out items);
+                    return;
                 }
             }
+        }
 
-            return null;
+        private static void MapToSwaggerTypes(Type type, Dictionary<string, SwaggerModel> models, out string responseType, out Dictionary<string, string> items)
+        {
+            // Handle IReturn<List<SomeClass>> or IReturn<SomeClass[]>
+            if (IsListType(type))
+            {
+                var listItemType = GetListElementType(type);
+                ParseModel(ref models, listItemType);
+
+                items = new Dictionary<string, string> {{"type", GetSwaggerTypeName(listItemType)}};
+                responseType = "array";
+            }
+            else
+            {
+                ParseModel(ref models, type);
+                responseType = GetSwaggerTypeName(type);
+                items = null;
+            }
         }
 
         private static List<ResponseMessage> GetMethodResponseCodes(Type requestType)
@@ -456,14 +464,9 @@ namespace ServiceStack.Api.Swagger
                 Description = summary,
                 Operations = verbs.Select(verb =>
                 {
-                    var responseClass = GetResponseClass(restPath, models);
-                    Dictionary<string, string> items = null;
-                    if (responseClass != null && responseClass.StartsWith("array"))
-                    {
-                        var pieces = responseClass.Split("[]".ToCharArray());
-                        responseClass = pieces[0];
-                        items = new Dictionary<string, string> { { "type", pieces[1] } };
-                    }
+                    Dictionary<string, string> items;
+                    string responseType;
+                    MapToSwaggerTypes(restPath, models, out responseType, out items);
                     return new MethodOperation
                     {
                         HttpMethod = verb,
@@ -471,7 +474,7 @@ namespace ServiceStack.Api.Swagger
                         Summary = summary,
                         Notes = notes,
                         Parameters = ParseParameters(verb, restPath.RequestType, models),
-                        ResponseType = responseClass,
+                        ResponseType = responseType,
                         Items = items,
                         ResponseMessages = GetMethodResponseCodes(restPath.RequestType)
                     };
@@ -480,10 +483,10 @@ namespace ServiceStack.Api.Swagger
             return md;
         }
 
-        private static List<MethodOperationParameter> ParseParameters(string verb, Type operationType, IDictionary<string, SwaggerModel> models)
+        private static List<MethodOperationParameter> ParseParameters(string verb, Type operationType, Dictionary<string, SwaggerModel> models)
         {
-            var methodOperationParameters = DocumentedParametersFor(verb, operationType)
-                .Union(ImpliedParametersFor(operationType), new MethodOperationParameterComparer())
+            var methodOperationParameters = DocumentedParametersFor(verb, operationType, models)
+                .Union(ImpliedParametersFor(operationType, models), new MethodOperationParameterComparer())
                 .ToList();
 
             if (!DisableAutoDtoInBodyParam)
@@ -491,7 +494,7 @@ namespace ServiceStack.Api.Swagger
                 if (!Common.Web.HttpMethods.Get.Equals(verb, StringComparison.OrdinalIgnoreCase)
                     && !methodOperationParameters.Any(p => p.ParamType.Equals("body", StringComparison.OrdinalIgnoreCase)))
                 {
-                    ParseModel(models, operationType);
+                    ParseModel(ref models, operationType);
                     var param = new MethodOperationParameter()
                     {
                         DataType = GetSwaggerTypeName(operationType),
@@ -519,7 +522,7 @@ namespace ServiceStack.Api.Swagger
             return propertyName;
         }
 
-        private static IEnumerable<MethodOperationParameter> DocumentedParametersFor(string operationVerb, Type operationType)
+        private static IEnumerable<MethodOperationParameter> DocumentedParametersFor(string operationVerb, Type operationType, Dictionary<string,SwaggerModel> models)
         {
 
             var hasDataContract = operationType.GetCustomAttributes(typeof(DataContractAttribute), inherit: true).Length > 0;
@@ -540,53 +543,74 @@ namespace ServiceStack.Api.Swagger
             {
                 var value = paramAttrs[key];
                 methodOperationParameters.AddRange(
-                    from ApiMemberAttribute member in value
-                    where
-                        member.Verb == null ||
-                        string.Compare(member.Verb, operationVerb, StringComparison.InvariantCultureIgnoreCase) == 0
-                    select new MethodOperationParameter
+                    value.Where(member => member.Verb == null
+                                       || string.Compare(member.Verb, operationVerb,StringComparison.InvariantCultureIgnoreCase) == 0)
+                    .Select(member =>
                     {
-                        DataType = member.DataType,
-                        AllowMultiple = member.AllowMultiple,
-                        Description = member.Description,
-                        Name = member.Name ?? key,
-                        ParamType = member.ParameterType,
-                        Required = member.IsRequired,
-                        AllowableValues = allowableParams.FirstOrDefault(attr => attr.Name == member.Name)
-                    });
+                        string paramType = member.DataType;
+                        Dictionary<string, string> items = null;
+
+                        if (member.DataType == null)
+                            MapToSwaggerTypes(properties.Single(p => p.Name == key).PropertyType, models, out paramType, out items);
+
+                        return new MethodOperationParameter
+                        {
+                            DataType = paramType,
+                            Items = items,
+                            AllowMultiple = member.AllowMultiple,
+                            Description = member.Description,
+                            Name = member.Name ?? key,
+                            ParamType = member.ParameterType,
+                            Required = member.IsRequired,
+                            AllowableValues = allowableParams.FirstOrDefault(attr => attr.Name == member.Name)
+                        };
+                    })
+                );
             }
 
             return methodOperationParameters;
         }
 
-        private static IEnumerable<MethodOperationParameter> ImpliedParametersFor(Type operationType)
+        private static IEnumerable<MethodOperationParameter> ImpliedParametersFor(Type operationType, Dictionary<string, SwaggerModel> models)
         {
             var hasDataContract = operationType.GetCustomAttributes(typeof(DataContractAttribute), inherit: true).Length > 0;
 
             //Add all operation route properties as route params
             var routePropertyNames = GetRoutePropertyNames(operationType);
             var operationProperties = operationType.GetProperties();
-            var routeParams = routePropertyNames.Select(routePropertyName =>
-            {
-                var operationProperty = operationProperties.Single(p => p.Name == routePropertyName);
-                return new MethodOperationParameter()
-                {
-                    DataType = GetSwaggerTypeName(operationProperty.PropertyType),
-                    Name = GetPropertyName(operationProperty, hasDataContract),
-                    ParamType = "path"
-                };
-            });
+            var routeParams = routePropertyNames
+                                .Select(routePropertyName => GetMethodOperationParameter(models, operationProperties.Single(p => p.Name == routePropertyName), hasDataContract))
+                                .Select(mop =>
+                                {
+                                    mop.ParamType = "path";
+                                    return mop;
+                                });
 
             //Add all operation properties as query params
-            var queryParams = operationProperties.Select(operationProperty => new MethodOperationParameter()
-            {
-                DataType = GetSwaggerTypeName(operationProperty.PropertyType),
-                Name = GetPropertyName(operationProperty, hasDataContract),
-                ParamType = "query"
-            });
-
+            var queryParams = operationProperties
+                                .Select(operationProperty => GetMethodOperationParameter(models, operationProperty, hasDataContract))
+                                .Select(mop => 
+                                {
+                                    mop.ParamType = "query";
+                                    return mop;
+                                });
             
             return routeParams.Concat(queryParams);
+        }
+
+        private static MethodOperationParameter GetMethodOperationParameter(Dictionary<string, SwaggerModel> models, PropertyInfo operationParameter,
+            bool hasDataContract)
+        {
+            string dataType;
+            Dictionary<string, string> items;
+            MapToSwaggerTypes(operationParameter.PropertyType, models, out dataType, out items);
+
+            return new MethodOperationParameter()
+            {
+                Name = GetPropertyName(operationParameter, hasDataContract),
+                DataType = dataType,
+                Items = items
+            };
         }
 
         private static IEnumerable<string> GetRoutePropertyNames(Type operationType)
@@ -611,7 +635,7 @@ namespace ServiceStack.Api.Swagger
         {
             public bool Equals(MethodOperationParameter x, MethodOperationParameter y)
             {
-                return x.Name == y.Name || x.ParamType == y.ParamType;
+                return x.Name == y.Name && x.ParamType == y.ParamType;
             }
 
             public int GetHashCode(MethodOperationParameter obj)

@@ -8,7 +8,6 @@ namespace ServiceStack.ServiceHost
         public ApiMemberAttribute()
         {
             ParameterType = "path";
-            DataType = "string";
         }
 
         /// <summary>
