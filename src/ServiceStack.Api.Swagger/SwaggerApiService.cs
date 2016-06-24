@@ -283,7 +283,7 @@ namespace ServiceStack.Api.Swagger
             return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
         }
 
-        private static void ParseModel(ref Dictionary<string, SwaggerModel> models, Type modelType)
+        private static void ParseModel(ref Dictionary<string, SwaggerModel> models, Type modelType, params string[] excluding)
         {
             if (IsSwaggerScalarType(modelType)) return;
 
@@ -301,6 +301,8 @@ namespace ServiceStack.Api.Swagger
             
             foreach (var prop in modelType.GetProperties())
             {
+                if (excluding.Contains(prop.Name)) continue;
+
                 DataMemberAttribute dataMemberAttribute = null;
                 if (hasDataContract)
                 {
@@ -486,7 +488,7 @@ namespace ServiceStack.Api.Swagger
         private static List<MethodOperationParameter> ParseParameters(string verb, Type operationType, Dictionary<string, SwaggerModel> models)
         {
             var methodOperationParameters = DocumentedParametersFor(verb, operationType, models)
-                .Union(ImpliedParametersFor(operationType, models), new MethodOperationParameterComparer())
+                .Union(ImpliedParametersFor(operationType, models), new CompareMethodOperationParameterByName())
                 .ToList();
 
             if (!DisableAutoDtoInBodyParam)
@@ -494,7 +496,7 @@ namespace ServiceStack.Api.Swagger
                 if (!Common.Web.HttpMethods.Get.Equals(verb, StringComparison.OrdinalIgnoreCase)
                     && !methodOperationParameters.Any(p => p.ParamType.Equals("body", StringComparison.OrdinalIgnoreCase)))
                 {
-                    ParseModel(ref models, operationType);
+                    ParseModel(ref models, operationType, methodOperationParameters.Where(mop => mop.Required).Select(mop => mop.Name).ToArray());
                     var param = new MethodOperationParameter()
                     {
                         DataType = GetSwaggerTypeName(operationType),
@@ -583,6 +585,7 @@ namespace ServiceStack.Api.Swagger
                                 .Select(mop =>
                                 {
                                     mop.ParamType = "path";
+                                    mop.Required = true;
                                     return mop;
                                 });
 
@@ -594,8 +597,8 @@ namespace ServiceStack.Api.Swagger
                                     mop.ParamType = "query";
                                     return mop;
                                 });
-            
-            return routeParams.Concat(queryParams);
+
+            return routeParams.Union(queryParams, new CompareMethodOperationParameterByName());
         }
 
         private static MethodOperationParameter GetMethodOperationParameter(Dictionary<string, SwaggerModel> models, PropertyInfo operationParameter,
@@ -631,16 +634,16 @@ namespace ServiceStack.Api.Swagger
                 .Distinct();
         }
 
-        private class MethodOperationParameterComparer : IEqualityComparer<MethodOperationParameter>
+        private class CompareMethodOperationParameterByName : IEqualityComparer<MethodOperationParameter>
         {
             public bool Equals(MethodOperationParameter x, MethodOperationParameter y)
             {
-                return x.Name == y.Name && x.ParamType == y.ParamType;
+                return x.Required && x.Name == y.Name;// && x.ParamType == y.ParamType;
             }
 
             public int GetHashCode(MethodOperationParameter obj)
             {
-                return obj.Name.GetHashCode() | obj.ParamType.GetHashCode();
+                return obj.Name.GetHashCode();// | obj.ParamType.GetHashCode();
             }
         }
     }

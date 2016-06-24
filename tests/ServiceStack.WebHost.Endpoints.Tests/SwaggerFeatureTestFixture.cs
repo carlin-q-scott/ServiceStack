@@ -61,13 +61,14 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
     [Route("/swaggerComplexParamTypes", "GET")]
     [Route("/swaggerComplexParamTypes", "POST")]
+    [Route("/swaggerComplexParamTypes", "PATCH")]
     public class SwaggerComplexParamTypes
     {
-        [ApiMember(Name = "StringEnumerable", Description = "string enumeration", ParameterType = "query", Verb = "GET")]
+        [ApiMember(Name = "StringEnumerable", Description = "string enumeration", ParameterType = "query", Verb = "PATCH", IsRequired = true)]
         public IEnumerable<string> StringEnumerable { get; set; }
-        [ApiMember(Name = "BoolList", ParameterType = "query", Verb = "GET")]
+        [ApiMember(Name = "BoolList", Description="boolean list", ParameterType = "query", Verb = "PATCH", IsRequired = true)]
         public List<bool> BoolList { get; set; }
-        [ApiMember(Name = "NullableBool", ParameterType = "query", Verb = "GET")]
+        [ApiMember(Name = "NullableBool", Description = "nullable boolean", ParameterType = "query", Verb = "PATCH", IsRequired = true)]
         public bool? NullableBool { get; set; }
     }
 
