@@ -226,7 +226,7 @@ namespace ServiceStack.Api.Swagger
             {
                 ResourcePath = path,
                 BasePath = basePath,
-                Apis = new List<MethodDescription>(paths.Select(p => FormateMethodDescription(p, models)).ToArray().OrderBy(md => md.Path)),
+                Apis = new List<MethodDescription>(paths.Select(p => FormatMethodDescription(p, models)).ToArray().OrderBy(md => md.Path)),
                 Models = models
             };
         }
@@ -446,7 +446,7 @@ namespace ServiceStack.Api.Swagger
                 }).ToList();
         }
 
-        private MethodDescription FormateMethodDescription(RestPath restPath, Dictionary<string, SwaggerModel> models)
+        private MethodDescription FormatMethodDescription(RestPath restPath, Dictionary<string, SwaggerModel> models)
         {
             var verbs = new List<string>();
             var summary = restPath.Summary;
@@ -485,6 +485,13 @@ namespace ServiceStack.Api.Swagger
             return md;
         }
 
+        /// <summary>
+        /// Parses defined parameters for the request model
+        /// </summary>
+        /// <param name="verb"></param>
+        /// <param name="operationType"></param>
+        /// <param name="models"></param>
+        /// <returns></returns>
         private static List<MethodOperationParameter> ParseParameters(string verb, Type operationType, Dictionary<string, SwaggerModel> models)
         {
             var methodOperationParameters = DocumentedParametersFor(verb, operationType, models)
@@ -638,7 +645,7 @@ namespace ServiceStack.Api.Swagger
         {
             public bool Equals(MethodOperationParameter x, MethodOperationParameter y)
             {
-                return x.Required && x.Name == y.Name;// && x.ParamType == y.ParamType;
+                return (x.Required || x.ParamType == y.ParamType) && x.Name == y.Name;
             }
 
             public int GetHashCode(MethodOperationParameter obj)

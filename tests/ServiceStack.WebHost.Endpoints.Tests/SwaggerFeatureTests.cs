@@ -167,14 +167,12 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             Assert.That(getOperation.HttpMethod, Is.EqualTo("GET"));
 
             Assert.That(getOperation.Parameters, Has.Count.GreaterThanOrEqualTo(1));
-            {
-                var p1 = getOperation.Parameters[0];
-                Assert.That(p1.Name, Is.EqualTo("Name"));
-                Assert.That(p1.Description, Is.EqualTo("Name Description"));
-                Assert.That(p1.DataType, Is.EqualTo("string"));
-                Assert.That(p1.ParamType, Is.EqualTo("path"));
-                Assert.That(p1.Required, Is.EqualTo(true));
-            }
+            var getOperationParam1 = getOperation.Parameters[0];
+            Assert.That(getOperationParam1.Name, Is.EqualTo("Name"));
+            Assert.That(getOperationParam1.Description, Is.EqualTo("Name Description"));
+            Assert.That(getOperationParam1.DataType, Is.EqualTo("string"));
+            Assert.That(getOperationParam1.ParamType, Is.EqualTo("path"));
+            Assert.That(getOperationParam1.Required, Is.EqualTo(true));
 
             var postOperation = operations.Single(t => t.HttpMethod == "POST");
             Assert.That(postOperation.Summary, Is.EqualTo("POST Summary"));
@@ -182,14 +180,12 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             Assert.That(postOperation.HttpMethod, Is.EqualTo("POST"));
 
             Assert.That(postOperation.Parameters, Has.Count.GreaterThanOrEqualTo(1));
-            {
-                var p1 = postOperation.Parameters[0];
-                Assert.That(p1.Name, Is.EqualTo("Name"));
-                Assert.That(p1.Description, Is.EqualTo("Name Description"));
-                Assert.That(p1.DataType, Is.EqualTo("string"));
-                Assert.That(p1.ParamType, Is.EqualTo("path"));
-                Assert.That(p1.Required, Is.EqualTo(true));
-            }
+            var postOperationParam1 = postOperation.Parameters[0];
+            Assert.That(postOperationParam1.Name, Is.EqualTo("Name"));
+            Assert.That(postOperationParam1.Description, Is.EqualTo("Name Description"));
+            Assert.That(postOperationParam1.DataType, Is.EqualTo("string"));
+            Assert.That(postOperationParam1.ParamType, Is.EqualTo("path"));
+            Assert.That(postOperationParam1.Required, Is.EqualTo(true));
         }
 
         [Test, TestCaseSource("RestClients")]
@@ -216,33 +212,32 @@ namespace ServiceStack.WebHost.Endpoints.Tests
 
             var operation = operations.Single(t => t.HttpMethod == "POST");
             Assert.That(operation.Parameters, Has.Count.GreaterThanOrEqualTo(4));
-            {
-                var param = operation.Parameters.Single(p => p.Name == "StringEnumerable");
-                Assert.That(param.Description, Is.Null);
-                Assert.That(param.DataType, Is.Not.Null);
-                Assert.That(param.Required, Is.EqualTo(false));
-                Assert.That(param.Items, Is.Not.Null);
+            
+            var param = operation.Parameters.Single(p => p.Name == "StringEnumerable");
+            Assert.That(param.Description, Is.Null);
+            Assert.That(param.DataType, Is.Not.Null);
+            Assert.That(param.Required, Is.EqualTo(false));
+            Assert.That(param.Items, Is.Not.Null);
 
-                param = operation.Parameters.Single(p => p.Name == "BoolList");
-                Assert.That(param.Description, Is.Null);
-                Assert.That(param.DataType, Is.EqualTo("array"));
-                Assert.That(param.ParamType, Is.EqualTo("query"));
-                Assert.That(param.Required, Is.EqualTo(false));
-                Assert.That(param.Items, Is.Not.Null);
+            param = operation.Parameters.Single(p => p.Name == "BoolList");
+            Assert.That(param.Description, Is.Null);
+            Assert.That(param.DataType, Is.EqualTo("array"));
+            Assert.That(param.ParamType, Is.EqualTo("query"));
+            Assert.That(param.Required, Is.EqualTo(false));
+            Assert.That(param.Items, Is.Not.Null);
 
-                param = operation.Parameters.Single(p => p.Name == "NullableBool");
-                Assert.That(param.Description, Is.Null);
-                Assert.That(param.DataType, Is.Not.Null);
-                Assert.That(param.ParamType, Is.EqualTo("query"));
-                Assert.That(param.Required, Is.EqualTo(false));
-                Assert.That(param.Items, Is.Null);
+            param = operation.Parameters.Single(p => p.Name == "NullableBool");
+            Assert.That(param.Description, Is.Null);
+            Assert.That(param.DataType, Is.Not.Null);
+            Assert.That(param.ParamType, Is.EqualTo("query"));
+            Assert.That(param.Required, Is.EqualTo(false));
+            Assert.That(param.Items, Is.Null);
 
-                param = operation.Parameters.Single(p => p.Name == "SwaggerComplexParamTypes");
-                Assert.That(param.Description, Is.Null);
-                Assert.That(param.DataType, Is.EqualTo("SwaggerComplexParamTypes"));
-                Assert.That(param.ParamType, Is.EqualTo("body"));
-                Assert.That(param.Required, Is.EqualTo(false));
-            }
+            param = operation.Parameters.Single(p => p.Name == "SwaggerComplexParamTypes");
+            Assert.That(param.Description, Is.Null);
+            Assert.That(param.DataType, Is.EqualTo("SwaggerComplexParamTypes"));
+            Assert.That(param.ParamType, Is.EqualTo("body"));
+            Assert.That(param.Required, Is.EqualTo(false));
         }
 
         [Test, TestCaseSource("RestClients")]
@@ -261,29 +256,29 @@ namespace ServiceStack.WebHost.Endpoints.Tests
             var operation = operations.Single(t => t.HttpMethod == "PATCH");
 
             Assert.That(operation.Parameters, Has.Count.GreaterThanOrEqualTo(1));
-            {
-                var param = operation.Parameters.Single(p => p.Name == "StringEnumerable");
-                Assert.That(param.Description, Is.EqualTo("string enumeration"));
-                Assert.That(param.DataType, Is.EqualTo("array"));
-                Assert.That(param.Required, Is.EqualTo(true));
-                Assert.That(param.Items["type"], Is.EqualTo("string"));
 
-                param = operation.Parameters.Single(p => p.Name == "BoolList");
-                Assert.That(param.Name, Is.EqualTo("BoolList"));
-                Assert.That(param.Description, Is.EqualTo("boolean list"));
-                Assert.That(param.DataType, Is.EqualTo("array"));
-                Assert.That(param.ParamType, Is.EqualTo("query"));
-                Assert.That(param.Required, Is.EqualTo(true));
-                Assert.That(param.Items["type"], Is.EqualTo("boolean"));
+            var param = operation.Parameters.Single(p => p.Name == "StringEnumerable");
+            Assert.That(param.Description, Is.EqualTo("string enumeration"));
+            Assert.That(param.DataType, Is.EqualTo("array"));
+            Assert.That(param.Required, Is.EqualTo(true));
+            Assert.That(param.Items["type"], Is.EqualTo("string"));
 
-                param = operation.Parameters.Single(p => p.Name == "NullableBool");
-                Assert.That(param.Name, Is.EqualTo("NullableBool"));
-                Assert.That(param.Description, Is.EqualTo("nullable boolean"));
-                Assert.That(param.DataType, Is.EqualTo("boolean"));
-                Assert.That(param.ParamType, Is.EqualTo("query"));
-                Assert.That(param.Required, Is.EqualTo(true));
-                Assert.That(param.Items, Is.Null);
-            }
+            param = operation.Parameters.Single(p => p.Name == "BoolList");
+            Assert.That(param.Name, Is.EqualTo("BoolList"));
+            Assert.That(param.Description, Is.EqualTo("boolean list"));
+            Assert.That(param.DataType, Is.EqualTo("array"));
+            Assert.That(param.ParamType, Is.EqualTo("query"));
+            Assert.That(param.Required, Is.EqualTo(true));
+            Assert.That(param.Items["type"], Is.EqualTo("boolean"));
+
+            param = operation.Parameters.Single(p => p.Name == "NullableBool");
+            Assert.That(param.Name, Is.EqualTo("NullableBool"));
+            Assert.That(param.Description, Is.EqualTo("nullable boolean"));
+            Assert.That(param.DataType, Is.EqualTo("boolean"));
+            Assert.That(param.ParamType, Is.EqualTo("query"));
+            Assert.That(param.Required, Is.EqualTo(true));
+            Assert.That(param.Items, Is.Null);
+            
         }
 
         [Test, TestCaseSource("RestClients")]
